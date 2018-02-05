@@ -1,0 +1,93 @@
+---
+title: "Where_to_Live"
+author: "Brent Crossman"
+date: "February 2, 2018"
+output: html_document
+runtime: shiny
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tigris)
+library(tidyverse)
+library(tmap)
+library(tmaptools)
+library(grid)
+library(stringr)
+library(splines)
+library(DT)
+
+```
+
+
+```{r pre_run}
+
+#load(file = "one_data_set_z.rdata")
+load(file = "one_data_set_zipcode_z.rdata")
+
+
+```
+
+## Inputs / Filters
+
+
+```{r where_to_live, echo=FALSE}
+
+inputPanel(
+  sliderInput("sun_adjust", label = "Sunlight Weight:",
+              min = 0, max = 2, value = 1, step = 0.1),
+  
+  sliderInput("days_degrees_adjust", label = "Days_Degrees from Perfect Weight:",
+              min = 0, max = 2, value = 1, step = 0.1),
+  
+  sliderInput("listing_adjust", label = "Listing Price/sf Weight:",
+              min = 0, max = 2, value = 1, step = 0.1),
+  
+  sliderInput("education_adjust", label = "Education Weight:",
+              min = 0, max = 2, value = 1, step = 0.1),
+  
+  sliderInput("perc_college_adjust", label = "Percent College Weight:",
+              min = 0, max = 2, value = 1, step = 0.1),
+  
+  selectInput("dem_or_rep", label = "How do you vote:",
+              choices = c("Democrat", "Republican"), selected = "Democrat"),
+  
+  sliderInput("perc_dem_adjust", label = "Percent Vote Similiar Weight:",
+              min = 0, max = 2, value = 1, step = 0.1)
+)
+
+
+renderDataTable({ 
+  if(input$dem_or_rep=="Democrat"){vote_mult <- 1}else{vote_mult <- -1}
+  
+  as.data.frame(one_data_set_z %>%
+                  filter(!is.na(listing_price_per_sf)) %>% 
+                  mutate(
+                    sunlight_multi = avg_sunlight_z * input$sun_adjust,
+                    listing_multi = listing_price_per_sf_z*input$listing_adjust,
+                    schools_avg_multi = schools_avg_z * input$education_adjust,
+                    schools_max_multi = schools_max_z * input$education_adjust,
+                    perc_coll_multi = Percent_College_z*input$perc_college_adjust,
+                    per_vote_similar_multi = per_dem_z * input$perc_dem_adjust * vote_mult) %>% 
+                  mutate(
+                    weighted_z_score = rowMeans(select(., ends_with("_multi")), 
+                                                na.rm = T))  %>%
+                  rename(Median_Inc = Median_Household_Income_2016,
+                         Median_Inc_Perc = Med_HH_Income_Percent_of_State_Total_2016) %>% 
+                  select(zipcode, City, Metro, County, State, FIPS,
+                         Median_Inc:per_dem, Rural_Urban, Percent_College, listing_price_per_sf,
+                         avg_jan:avg_jul, 
+                         ends_with("_z"), 
+                         combined_z_score, 
+                         weighted_z_score 
+                  ))
+}, 
+filter = 'top',
+rownames = FALSE,
+options = list(order = list(24, 'desc')))
+
+```
+
+
+
